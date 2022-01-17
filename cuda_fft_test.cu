@@ -37,7 +37,9 @@ int main()
  #ifdef NORMAL
     printf("Normal Mode\r\n");
     // data buffer on the host computer
-    cufftComplex *data_host = (cufftComplex*) malloc(SAMPLES * sizeof(cufftComplex));   
+    cufftReal *data_host = (cufftReal*) malloc(SAMPLES * sizeof(cufftReal));   
+    cufftComplex *data_host_out;
+    cudaHostAlloc((void **)&data_host_out, SAMPLES * sizeof(cufftComplex), cudaHostAllocMapped);
  #else
     printf("Zero Copy Mode\r\n");
     cufftComplex *data_host_out;
@@ -58,8 +60,6 @@ int main()
     // init data buffer
     for(int i = 0; i < SAMPLES; i++)
     {
-        //data_host[i].x = fake_data[i];
-        //data_host[i].y = 0;
         data_host[i] = fake_data[i];
     }
     
@@ -67,7 +67,7 @@ int main()
     cufftComplex *data_gpu_out;
     cufftReal *data_gpu;
 #ifdef NORMAL
-    cudaMalloc((void**)&data_gpu, SAMPLES * sizeof(cufftComplex));
+    cudaMalloc((void**)&data_gpu, SAMPLES * sizeof(cufftReal));
 #else
     // do nothing here
 #endif
@@ -78,7 +78,7 @@ int main()
     clock_gettime(CLOCK_MONOTONIC, &start);
     // copy data from host to GPU
 #ifdef NORMAL
-    cudaMemcpy(data_gpu, data_host, SAMPLES * sizeof(cufftComplex), cudaMemcpyHostToDevice);
+    cudaMemcpy(data_gpu, data_host, SAMPLES * sizeof(cufftReal), cudaMemcpyHostToDevice);
 #else
     cudaHostGetDevicePointer((void**)&data_gpu, data_host, 0);
 #endif
