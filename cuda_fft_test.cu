@@ -4,7 +4,9 @@
 #include "cufft.h"
 #include "time.h"
 
-#define SAMPLES 256
+#define CHANNELS    16384
+#define SPECTRA     16384
+#define SAMPLES     CHANNELS * SPECTRA
 
 #define ELAPSED_NS(start,stop) \
   (((int64_t)stop.tv_sec-start.tv_sec)*1000*1000*1000+(stop.tv_nsec-start.tv_nsec))
@@ -37,9 +39,10 @@ int main()
     }
     
     // data buffer on GPU
-    cufftComplex *data_gpu;
+    cufftComplex *data_gpu, *data_gpu_out;
     cudaMalloc((void**)&data_gpu, SAMPLES * sizeof(cufftComplex));
-    
+    cudaMalloc((void**)&data_gpu_out, SAMPLES * sizeof(cufftComplex));
+
     // record the start time
     int64_t elapsed_gpu_ns0  = 0;
     clock_gettime(CLOCK_MONOTONIC, &start);
@@ -53,8 +56,30 @@ int main()
     clock_gettime(CLOCK_MONOTONIC, &start);
     // exec fft
     cufftHandle plan;
-    cufftPlan1d(&plan, SAMPLES, CUFFT_C2C,1);
-    cufftExecC2C(plan, (cufftComplex*) data_gpu, (cufftComplex*) data_gpu, CUFFT_FORWARD);
+    /*
+    *   1d fft
+    */
+    //cufftPlan1d(&plan, SAMPLES, CUFFT_C2C,1);
+    
+    /*
+    * Many fft
+    */
+    int rank = 1;
+    int n[1];
+    n[0] = CHANNELS;
+    int istride = 1;
+    int idist = CHANNELS;
+    int ostride = 1;
+    int odist = CHANNELS;
+    int inembed[2], onembed[2];
+    inembed[0] = CHANNELS;
+    onembed[0] = CHANNELS;
+    inembed[1] = SPECTRA;
+    inembed[1] = SPECTRA;
+    cufftPlanMany(&plan, rank, n, inembed, istride, idist, onembed, ostride, odist, CUFFT_C2C, SPECTRA);
+
+    //cufftExecC2C(plan, (cufftComplex*) data_gpu, (cufftComplex*) data_gpu, CUFFT_FORWARD);
+    cufftExecC2C(plan, (cufftComplex*) data_gpu, (cufftComplex*) data_gpu_out, CUFFT_FORWARD);
     cudaDeviceSynchronize();
 
     // record the end time
@@ -63,7 +88,16 @@ int main()
     printf("%-25s: %f ms\r\n","Processing time", elapsed_gpu_ns1/1000000.0);
 
     // copy data from GPU to host
-    cudaMemcpy(data_host, data_gpu, SAMPLES * sizeof(cufftComplex), cudaMemcpyDeviceToHost);
+    //cudaMemcpy(data_host, data_gpu, SAMPLES * sizeof(cufftComplex), cudaMemcpyDeviceToHost);
+    int64_t elapsed_gpu_ns2  = 0;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    cudaMemcpy(data_host, data_gpu_out, SAMPLES * sizeof(cufftComplex), cudaMemcpyDeviceToHost);
+    clock_gettime(CLOCK_MONOTONIC, &stop);
+    elapsed_gpu_ns2 = ELAPSED_NS(start, stop);
+    printf("%-25s: %f ms\r\n","copy time(dev to host)", elapsed_gpu_ns2/1000000.0);
+
+    elapsed_gpu_ns = elapsed_gpu_ns0 + elapsed_gpu_ns1 + elapsed_gpu_ns2;
+    printf("%-25s: %f ms\r\n","total time", elapsed_gpu_ns/1000000.0);
 
     // cal power
     float *res = (float*) malloc(SAMPLES * sizeof(float));
@@ -90,6 +124,7 @@ int main()
     // end
     cufftDestroy(plan);
     cudaFree(data_gpu);
+    cudaFree(data_gpu_out);
     free(data_host);
     free(res);
     return 0;
