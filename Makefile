@@ -1,5 +1,6 @@
 NVCC	= nvcc
 
+DEF		= 
 TARGET  = cuda_fft_test
 
 SRC		= cuda_fft_test.cu
@@ -9,7 +10,7 @@ CCFLAG 	= -I/usr/local/cuda/include \
 		  -lcufft
 
 ${TARGET}: ${SRC}
-	${NVCC} ${CCFLAG} ${SRC} -o $@ 
+	${NVCC} ${CCFLAG} ${SRC} ${DEF} -o $@ 
 
 .PHONY: clean
 clean:

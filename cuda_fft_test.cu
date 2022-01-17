@@ -5,7 +5,10 @@
 #include "cuda.h"
 #include "time.h"
 
+#ifndef SPECTRA
 #define SPECTRA     4096
+#endif
+
 #define CHANNELS    16384
 #define SAMPLES     CHANNELS * SPECTRA
 
@@ -29,13 +32,18 @@ int main()
 {
     struct timespec start, stop;
     int64_t elapsed_gpu_ns  = 0;
-      
+
+
  #ifdef NORMAL
+    printf("Normal Mode\r\n");
     // data buffer on the host computer
     cufftComplex *data_host = (cufftComplex*) malloc(SAMPLES * sizeof(cufftComplex));   
  #else
-    cufftComplex *data_host;
-    cudaHostAlloc((void **)&data_host, SAMPLES * sizeof(cufftComplex), cudaHostAllocMapped);
+    printf("Zero Copy Mode\r\n");
+    cufftComplex *data_host_out;
+    cudaHostAlloc((void **)&data_host_out, SAMPLES * sizeof(cufftComplex), cudaHostAllocMapped);
+    cufftReal *data_host;
+    cudaHostAlloc((void **)&data_host, SAMPLES * sizeof(cufftReal), cudaHostAllocMapped);
 #endif
 
     int64_t elapsed_gpu_ns3  = 0;
@@ -50,12 +58,14 @@ int main()
     // init data buffer
     for(int i = 0; i < SAMPLES; i++)
     {
-        data_host[i].x = fake_data[i];
-        data_host[i].y = 0;
+        //data_host[i].x = fake_data[i];
+        //data_host[i].y = 0;
+        data_host[i] = fake_data[i];
     }
     
     // data buffer on GPU
-    cufftComplex *data_gpu, *data_gpu_out;
+    cufftComplex *data_gpu_out;
+    cufftReal *data_gpu;
 #ifdef NORMAL
     cudaMalloc((void**)&data_gpu, SAMPLES * sizeof(cufftComplex));
 #else
@@ -102,7 +112,7 @@ int main()
     //inembed[1] = SPECTRA;
     //onembed[1] = SPECTRA;
     
-    cufftResult fft_ret = cufftPlanMany(&plan, rank, n, inembed, istride, idist, onembed, ostride, odist, CUFFT_C2C, SPECTRA);
+    cufftResult fft_ret = cufftPlanMany(&plan, rank, n, inembed, istride, idist, onembed, ostride, odist, CUFFT_R2C, SPECTRA);
     //cufftResult fft_ret = cufftPlanMany(&plan, rank, n, NULL, istride, idist, NULL, ostride, odist, CUFFT_C2C, SPECTRA);
 
     if( fft_ret != CUFFT_SUCCESS ) {
@@ -110,7 +120,7 @@ int main()
     }
 
     //cufftExecC2C(plan, (cufftComplex*) data_gpu, (cufftComplex*) data_gpu, CUFFT_FORWARD);
-    fft_ret = cufftExecC2C(plan, (cufftComplex*) data_gpu, (cufftComplex*) data_gpu_out, CUFFT_FORWARD);
+    fft_ret = cufftExecR2C(plan, data_gpu, (cufftComplex*) data_gpu_out);
     if (fft_ret != CUFFT_SUCCESS) {
         printf("forward transform fail\r\n"); 
     }
@@ -124,7 +134,7 @@ int main()
     // copy data from GPU to host
     int64_t elapsed_gpu_ns2  = 0;
     clock_gettime(CLOCK_MONOTONIC, &start);
-    cudaMemcpy(data_host, data_gpu_out, SAMPLES * sizeof(cufftComplex), cudaMemcpyDeviceToHost);
+    cudaMemcpy(data_host_out, data_gpu_out, SAMPLES * sizeof(cufftComplex), cudaMemcpyDeviceToHost);
     clock_gettime(CLOCK_MONOTONIC, &stop);
     elapsed_gpu_ns2 = ELAPSED_NS(start, stop);
     printf("%-25s: %f ms\r\n","copy time(dev to host)", elapsed_gpu_ns2/1000000.0);
@@ -136,7 +146,7 @@ int main()
     float *res = (float*) malloc(SAMPLES * sizeof(float));
     for(int i = 0; i < SAMPLES; i++)
     {
-        res[i] = data_host[i].x * data_host[i].x + data_host[i].y * data_host[i].y;
+        res[i] = data_host_out[i].x * data_host_out[i].x + data_host_out[i].y * data_host_out[i].y;
     }
 
     // write data to file
