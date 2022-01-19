@@ -28,12 +28,30 @@ void gen_fake_data(float *data) {
    }
 }
 
+int GetDevInfo()
+{
+    cudaDeviceProp prop;
+    int deviceID;
+    cudaGetDevice(&deviceID);
+    cudaGetDeviceProperties(&prop, deviceID);
+    if(!prop.deviceOverlap)
+        return -1;
+    else
+        return 0;
+}
+
 int main()
 {
     struct timespec start, stop;
     int64_t elapsed_gpu_ns  = 0;
 
-
+    int gpu_status = 0;
+    gpu_status = GetDevInfo();
+    if(gpu_status < 0)
+        printf("No device will handle overlaps.\r\n");
+    else   
+        printf("overlaps are supported on the device.\r\n");
+        
  #ifdef NORMAL
     printf("Normal Mode\r\n");
     // data buffer on the host computer
