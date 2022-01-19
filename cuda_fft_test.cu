@@ -34,6 +34,15 @@ int GetDevInfo()
     int deviceID;
     cudaGetDevice(&deviceID);
     cudaGetDeviceProperties(&prop, deviceID);
+    printf("GPU Device Info:\r\n");
+    printf("%-25s: %d\r\n", "MaxThreadsPerBlock", prop.maxThreadsPerBlock);
+    printf("%-25s: %d %d %d\r\n","maxThreadsDim", prop.maxThreadsDim[0], \
+                                                  prop.maxThreadsDim[1], \
+                                                  prop.maxThreadsDim[2]);
+    printf("%-25s: %d %d %d\r\n","maxGridSize", prop.maxGridSize[0], \
+                                                prop.maxGridSize[1], \
+                                                prop.maxGridSize[2]);
+
     if(!prop.deviceOverlap)
         return -1;
     else
