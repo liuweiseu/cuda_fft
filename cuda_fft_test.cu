@@ -6,15 +6,16 @@
 #include "time.h"
 
 #ifndef SPECTRA
-#define SPECTRA     4096
+#define SPECTRA     512
 #endif
 
 #define CHANNELS    16384
 #define SAMPLES     CHANNELS * SPECTRA
 
 #define WR_TO_FILE
-//#define NORMAL
+#define NORMAL
 
+#define REPEAT      1
 #define ELAPSED_NS(start,stop) \
   (((int64_t)stop.tv_sec-start.tv_sec)*1000*1000*1000+(stop.tv_nsec-start.tv_nsec))
 
@@ -100,21 +101,6 @@ int main()
 #endif
     cudaMalloc((void**)&data_gpu_out, SAMPLES * sizeof(cufftComplex));
 
-    // record the start time
-    int64_t elapsed_gpu_ns0  = 0;
-    clock_gettime(CLOCK_MONOTONIC, &start);
-    // copy data from host to GPU
-#ifdef NORMAL
-    cudaMemcpy(data_gpu, data_host, SAMPLES * sizeof(cufftReal), cudaMemcpyHostToDevice);
-#else
-    cudaHostGetDevicePointer((void**)&data_gpu, data_host, 0);
-#endif
-    clock_gettime(CLOCK_MONOTONIC, &stop);
-    elapsed_gpu_ns0 = ELAPSED_NS(start, stop);
-    printf("%-25s: %f ms\r\n","copy time(host to dev)", elapsed_gpu_ns0/1000000.0);
-
-    int64_t elapsed_gpu_ns1  = 0;
-    clock_gettime(CLOCK_MONOTONIC, &start);
     // exec fft
     cufftHandle plan;
     /*
@@ -146,17 +132,29 @@ int main()
         printf("cufftPlanMany failed\r\n");
     }
 
-    //cufftExecC2C(plan, (cufftComplex*) data_gpu, (cufftComplex*) data_gpu, CUFFT_FORWARD);
-    fft_ret = cufftExecR2C(plan, data_gpu, (cufftComplex*) data_gpu_out);
-    if (fft_ret != CUFFT_SUCCESS) {
-        printf("forward transform fail\r\n"); 
+    // record the start time
+    int64_t elapsed_gpu_ns0  = 0;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    for(int i = 0; i < REPEAT; i++)
+    {
+    
+    // copy data from host to GPU
+#ifdef NORMAL
+        cudaMemcpy(data_gpu, data_host, SAMPLES * sizeof(cufftReal), cudaMemcpyHostToDevice);
+#else
+        cudaHostGetDevicePointer((void**)&data_gpu, data_host, 0);
+#endif
+        //cufftExecC2C(plan, (cufftComplex*) data_gpu, (cufftComplex*) data_gpu, CUFFT_FORWARD);
+        fft_ret = cufftExecR2C(plan, data_gpu, (cufftComplex*) data_gpu_out);
+        if (fft_ret != CUFFT_SUCCESS) {
+            printf("forward transform fail\r\n"); 
+        }
+        cudaDeviceSynchronize();
     }
-    cudaDeviceSynchronize();
-
     // record the end time
     clock_gettime(CLOCK_MONOTONIC, &stop);
-    elapsed_gpu_ns1 = ELAPSED_NS(start, stop);
-    printf("%-25s: %f ms\r\n","Processing time", elapsed_gpu_ns1/1000000.0);
+    elapsed_gpu_ns0 = ELAPSED_NS(start, stop);
+    printf("%-25s: %f ms\r\n","Processing and copy time", elapsed_gpu_ns0/1000000.0);
 
     // copy data from GPU to host
     int64_t elapsed_gpu_ns2  = 0;
@@ -166,7 +164,7 @@ int main()
     elapsed_gpu_ns2 = ELAPSED_NS(start, stop);
     printf("%-25s: %f ms\r\n","copy time(dev to host)", elapsed_gpu_ns2/1000000.0);
 
-    elapsed_gpu_ns = elapsed_gpu_ns0 + elapsed_gpu_ns1 + elapsed_gpu_ns2;
+    elapsed_gpu_ns = elapsed_gpu_ns0  + elapsed_gpu_ns2;
     printf("%-25s: %f ms\r\n","total time", elapsed_gpu_ns/1000000.0);
 
     // cal power
