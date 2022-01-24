@@ -5,26 +5,27 @@
 #include "cuda.h"
 #include "time.h"
 
-#ifndef SPECTRA
-#define SPECTRA     512
-#endif
+#include "pfb_fir.cuh"
 
+#define WGS         128
 #define CHANNELS    16384
-#define SAMPLES     CHANNELS * SPECTRA
+#define TAPS        4
+#define SPECTRA     512
+#define SAMPLES     2 * CHANNELS * (SPECTRA + TAPS - 1)
 
 #define WR_TO_FILE
-#define NORMAL
+//#define NORMAL
 
-#define REPEAT      1
+#define REPEAT      200
 #define ELAPSED_NS(start,stop) \
   (((int64_t)stop.tv_sec-start.tv_sec)*1000*1000*1000+(stop.tv_nsec-start.tv_nsec))
 
 void gen_fake_data(float *data) {
    float fs = 1024;
-   float fin  = 128;
+   float fin  = 300;
    for( size_t t=0; t<SAMPLES; t++ ) { 
        double f = 2*M_PI * t *fin/fs;
-       float res = 127 * sin(f);
+       float res = 127 * sin(f) + 127;
        *(data+t) = res;
    }
 }
@@ -55,25 +56,54 @@ int main()
     struct timespec start, stop;
     int64_t elapsed_gpu_ns  = 0;
 
+    printf("sizeof cufftReal: %ld\r\n",sizeof(cufftReal));
     int gpu_status = 0;
     gpu_status = GetDevInfo();
     if(gpu_status < 0)
         printf("No device will handle overlaps.\r\n");
     else   
         printf("overlaps are supported on the device.\r\n");
-        
+
+    /*
+    * preparing for pfb_fir
+    */
+    float *weights;
+    weights = (float*) malloc(2*TAPS*CHANNELS*sizeof(float));
+    printf("preparing for weights...\r\n");
+    for(int i = 0; i<(2*TAPS*CHANNELS); i++)weights[i] = 1;
+    printf("weights ready.\r\n");
+    float *weights_gpu;
+    cudaMalloc((void**)&weights_gpu, 2*TAPS*CHANNELS*sizeof(float));
+    cudaMemcpy(weights_gpu, weights, 2*TAPS*CHANNELS*sizeof(float), cudaMemcpyHostToDevice);
+
+    float *pfbfir_out_gpu;
+    cudaMalloc((void**)&pfbfir_out_gpu, CHANNELS*SPECTRA*sizeof(float));
+
+    long long int step = 2 * CHANNELS;
+    printf("%-10s : %lld\r\n","step",step);
+    long long int out_n = step * SPECTRA;
+    printf("%-10s : %lld\r\n","out_n",out_n);
+    long long int stepy = (step * out_n + 256 * 1024 - 1)/(256*1024);
+    printf("%-10s : %lld\r\n","stepy",stepy);
+    int groupsx = step/WGS;
+    printf("%-10s : %d\r\n","groupsx",groupsx);
+    int groupsy = (out_n + stepy - 1)/stepy;
+    printf("%-10s : %d\r\n","groupsy",groupsy);
+    
+
  #ifdef NORMAL
     printf("Normal Mode\r\n");
     // data buffer on the host computer
     cufftReal *data_host = (cufftReal*) malloc(SAMPLES * sizeof(cufftReal));   
-    cufftComplex *data_host_out;
-    cudaHostAlloc((void **)&data_host_out, SAMPLES * sizeof(cufftComplex), cudaHostAllocMapped);
+    cufftComplex *data_host_out = (cufftComplex*) malloc(SAMPLES * sizeof(cufftComplex));
  #else
     printf("Zero Copy Mode\r\n");
     cufftComplex *data_host_out;
     cudaHostAlloc((void **)&data_host_out, SAMPLES * sizeof(cufftComplex), cudaHostAllocMapped);
-    cufftReal *data_host;
-    cudaHostAlloc((void **)&data_host, SAMPLES * sizeof(cufftReal), cudaHostAllocMapped);
+    //cufftReal *data_host;
+    //cudaHostAlloc((void **)&data_host, SAMPLES * sizeof(cufftReal), cudaHostAllocMapped);
+    uchar *data_host;
+    cudaHostAlloc((void **)&data_host, SAMPLES * sizeof(uchar), cudaHostAllocMapped);
 #endif
 
     int64_t elapsed_gpu_ns3  = 0;
@@ -93,13 +123,14 @@ int main()
     
     // data buffer on GPU
     cufftComplex *data_gpu_out;
-    cufftReal *data_gpu;
+    //cufftReal *data_gpu;
+    uchar *data_gpu;
 #ifdef NORMAL
     cudaMalloc((void**)&data_gpu, SAMPLES * sizeof(cufftReal));
+    cudaMalloc((void**)&data_gpu_out, SAMPLES * sizeof(cufftComplex));
 #else
     // do nothing here
 #endif
-    cudaMalloc((void**)&data_gpu_out, SAMPLES * sizeof(cufftComplex));
 
     // exec fft
     cufftHandle plan;
@@ -113,11 +144,11 @@ int main()
     */
     int rank = 1;
     int n[1];
-    n[0] = CHANNELS;
+    n[0] = 2*CHANNELS;
     int istride = 1;
-    int idist = CHANNELS;
+    int idist = 2*CHANNELS;
     int ostride = 1;
-    int odist = CHANNELS;
+    int odist = 2*CHANNELS;
     
     int inembed[1], onembed[1];
     inembed[0] = CHANNELS * SPECTRA;
@@ -143,14 +174,29 @@ int main()
         cudaMemcpy(data_gpu, data_host, SAMPLES * sizeof(cufftReal), cudaMemcpyHostToDevice);
 #else
         cudaHostGetDevicePointer((void**)&data_gpu, data_host, 0);
+        cudaHostGetDevicePointer((void**)&data_gpu_out, data_host_out, 0);
 #endif
+
+        pfb_fir<<<groupsx,groupsy>>>(
+        pfbfir_out_gpu,  
+        (uchar*)data_gpu,   
+        weights_gpu,    
+        CHANNELS*SPECTRA,
+        step,
+        stepy,
+        0,
+        0
+        );
+    
         //cufftExecC2C(plan, (cufftComplex*) data_gpu, (cufftComplex*) data_gpu, CUFFT_FORWARD);
-        fft_ret = cufftExecR2C(plan, data_gpu, (cufftComplex*) data_gpu_out);
+        fft_ret = cufftExecR2C(plan, (cufftReal*)pfbfir_out_gpu, (cufftComplex*) data_gpu_out);
+        //fft_ret = cufftExecR2C(plan, (cufftReal*)data_gpu, (cufftComplex*) data_gpu_out);
         if (fft_ret != CUFFT_SUCCESS) {
             printf("forward transform fail\r\n"); 
         }
-        cudaDeviceSynchronize();
+        //cudaDeviceSynchronize();
     }
+    cudaDeviceSynchronize();
     // record the end time
     clock_gettime(CLOCK_MONOTONIC, &stop);
     elapsed_gpu_ns0 = ELAPSED_NS(start, stop);
@@ -159,7 +205,11 @@ int main()
     // copy data from GPU to host
     int64_t elapsed_gpu_ns2  = 0;
     clock_gettime(CLOCK_MONOTONIC, &start);
+#ifdef NORMAL
     cudaMemcpy(data_host_out, data_gpu_out, SAMPLES * sizeof(cufftComplex), cudaMemcpyDeviceToHost);
+#else
+    // do nothing here
+#endif
     clock_gettime(CLOCK_MONOTONIC, &stop);
     elapsed_gpu_ns2 = ELAPSED_NS(start, stop);
     printf("%-25s: %f ms\r\n","copy time(dev to host)", elapsed_gpu_ns2/1000000.0);
@@ -194,6 +244,8 @@ int main()
 #endif
     
     // end
+    cudaFree(weights_gpu);
+    cudaFree(pfbfir_out_gpu);
     cufftDestroy(plan);
     cudaFree(data_gpu_out);
     free(res);
