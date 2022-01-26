@@ -25,9 +25,9 @@ void gen_fake_data(float *data) {
    float fin  = 128;
    for( size_t t=0; t<SAMPLES; t++ ) { 
        double f = 2*M_PI * t *fin/fs;
-       float res = 127 * sin(f);
-       //*(data+t) = res;
-       *(data+t) = 1;
+       float res = 127 * sin(f)+127;
+       *(data+t) = res;
+       //*(data+t) = 1;
    }
 }
 
@@ -100,6 +100,8 @@ int main()
     printf("%-10s : %d\r\n","groupsx",groupsx);
     int groupsy = (out_n + stepy - 1)/stepy;
     printf("%-10s : %d\r\n","groupsy",groupsy);
+    dim3 dimgrid(groupsx*WGS, groupsy);
+    dim3 dimblock(WGS,1);
     ///////////////////////////////////////////////////////////////////////////////////////////
 
  #ifdef NORMAL
@@ -191,11 +193,11 @@ int main()
         cudaHostGetDevicePointer((void**)&data_gpu_out, data_host_out, 0);
 #endif
         
-        pfb_fir<<<groupsx,groupsy>>>(
+        pfb_fir<<<dimgrid,dimblock>>>(
         (float *)pfbfir_out_gpu,  
         (unsigned char*)data_gpu,   
         weights_gpu,    
-        CHANNELS*SPECTRA,
+        out_n,
         step,
         stepy,
         0,
@@ -212,7 +214,7 @@ int main()
             printf("forward transform fail\r\n"); 
         }
     }
-
+    /*
     cufftReal *pfbfir_out = (cufftReal*)malloc(CHANNELS*SPECTRA*sizeof(cufftReal));
     cudaMemcpy(pfbfir_out, pfbfir_out_gpu, CHANNELS*SPECTRA*sizeof(cufftReal), cudaMemcpyDeviceToHost);
     for(long long unsigned int i = 0;i<CHANNELS*SPECTRA ;i++)
@@ -225,7 +227,7 @@ int main()
     }
     for(int i = 0;i<200;i++)printf("%d %f\r\n",i,pfbfir_out[i]);
     free(pfbfir_out);
-    
+    */
     cudaDeviceSynchronize();
     // record the end time
     clock_gettime(CLOCK_MONOTONIC, &stop);
