@@ -16,7 +16,7 @@
 #define WR_TO_FILE
 #define NORMAL
 
-#define REPEAT      100
+#define REPEAT      2
 #define ELAPSED_NS(start,stop) \
   (((int64_t)stop.tv_sec-start.tv_sec)*1000*1000*1000+(stop.tv_nsec-start.tv_nsec))
 
@@ -26,8 +26,8 @@ void gen_fake_data(float *data) {
    for( size_t t=0; t<SAMPLES; t++ ) { 
        double f = 2*M_PI * t *fin/fs;
        float res = 127 * sin(f)+127;
-       //*(data+t) = res;
-       *(data+t) = 1;
+       *(data+t) = res;
+       //*(data+t) = 1;
    }
 }
 
@@ -57,11 +57,6 @@ int main()
     struct timespec start, stop;
     int64_t elapsed_gpu_ns  = 0;
 
-    cufftReal test0 = 4;
-    float test1 = 4;
-    printf("%f %f\r\n",(float)test0,(cufftReal)test1);
-    printf("sizeof cufftReal: %ld\r\n",sizeof(cufftReal));
-
     int gpu_status = 0;
     gpu_status = GetDevInfo();
     if(gpu_status < 0)
@@ -85,11 +80,6 @@ int main()
     cufftReal *pfbfir_out_gpu;
     cudaMalloc((void**)&pfbfir_out_gpu, CHANNELS*SPECTRA*sizeof(cufftReal));
 
-    float *pfbfir = (float*) malloc(sizeof(float)*CHANNELS*SPECTRA);
-    for(int i = 0;i<CHANNELS*SPECTRA;i++)pfbfir[i] = 4.0;
-    cudaMemcpy(pfbfir_out_gpu, pfbfir, CHANNELS*SPECTRA*sizeof(float), cudaMemcpyHostToDevice);
-    free(pfbfir);
-
     long long int step = CHANNELS;
     printf("%-10s : %lld\r\n","step",step);
     long long int out_n = step * SPECTRA;
@@ -106,16 +96,19 @@ int main()
 
  #ifdef NORMAL
     printf("Normal Mode\r\n");
-    // data buffer on the host computer
-    //cufftReal *data_host = (cufftReal*) malloc(SAMPLES * sizeof(cufftReal));
-    unsigned char *data_host = (unsigned char*) malloc(SAMPLES * sizeof(unsigned char));   
-    cufftComplex *data_host_out = (cufftComplex*) malloc(SAMPLES * sizeof(cufftComplex));
+    cudaError_t status;
+    unsigned char *data_host;
+    status = cudaMallocHost((void **)&data_host,SAMPLES * sizeof(unsigned char));
+    if (status != cudaSuccess)
+        printf("Error allocating pinned host memory\n");
+    cufftComplex *data_host_out;
+    status = cudaMallocHost((void **)&data_host_out,CHANNELS*SPECTRA * sizeof(cufftComplex));
+    if (status != cudaSuccess)
+        printf("Error allocating pinned host memory\n");
  #else
     printf("Zero Copy Mode\r\n");
     cufftComplex *data_host_out;
     cudaHostAlloc((void **)&data_host_out, SAMPLES * sizeof(cufftComplex), cudaHostAllocMapped);
-    //cufftReal *data_host;
-    //cudaHostAlloc((void **)&data_host, SAMPLES * sizeof(cufftReal), cudaHostAllocMapped);
     unsigned char *data_host;
     cudaHostAlloc((void **)&data_host, SAMPLES * sizeof(unsigned char), cudaHostAllocMapped);
 #endif
@@ -134,12 +127,9 @@ int main()
         data_host[i] = fake_data[i];
     }
 
-    // data buffer on GPU
     cufftComplex *data_gpu_out;
-    //cufftReal *data_gpu;
     unsigned char *data_gpu;
 #ifdef NORMAL
-    //cudaMalloc((void**)&data_gpu, SAMPLES * sizeof(cufftReal));
     cudaMalloc((void**)&data_gpu, SAMPLES * sizeof(unsigned char));
     cudaMalloc((void**)&data_gpu_out, SAMPLES * sizeof(cufftComplex));
 #else
@@ -165,13 +155,10 @@ int main()
     int odist = CHANNELS;
     
     int inembed[1], onembed[1];
-    inembed[0] = SAMPLES;
-    onembed[0] = SAMPLES;
-    //inembed[1] = SPECTRA;
-    //onembed[1] = SPECTRA;
+    inembed[0] = CHANNELS*SPECTRA;
+    onembed[0] = CHANNELS*SPECTRA;
     
     cufftResult fft_ret = cufftPlanMany(&plan, rank, n, inembed, istride, idist, onembed, ostride, odist, CUFFT_R2C, SPECTRA);
-    //cufftResult fft_ret = cufftPlanMany(&plan, rank, n, NULL, istride, idist, NULL, ostride, odist, CUFFT_C2C, SPECTRA);
 
     if( fft_ret != CUFFT_SUCCESS ) {
         printf("cufftPlanMany failed\r\n");
@@ -185,9 +172,7 @@ int main()
     
     // copy data from host to GPU
 #ifdef NORMAL
-        //cudaMemcpy(data_gpu, data_host, SAMPLES * sizeof(cufftReal), cudaMemcpyHostToDevice);
         cudaMemcpy(data_gpu, data_host, SAMPLES * sizeof(unsigned char), cudaMemcpyHostToDevice);
-        //cudaMemset(data_gpu,1, SAMPLES*sizeof(cufftReal));
 #else
         cudaHostGetDevicePointer((void**)&data_gpu, data_host, 0);
         cudaHostGetDevicePointer((void**)&data_gpu_out, data_host_out, 0);
@@ -204,31 +189,13 @@ int main()
         0
         );
         
-
-        //cufftExecC2C(plan, (cufftComplex*) data_gpu, (cufftComplex*) data_gpu, CUFFT_FORWARD);
-
-
         fft_ret = cufftExecR2C(plan, (cufftReal*)pfbfir_out_gpu, (cufftComplex*) data_gpu_out);
-        //fft_ret = cufftExecR2C(plan, (cufftReal*)data_gpu, (cufftComplex*) data_gpu_out);
         if (fft_ret != CUFFT_SUCCESS) {
             printf("forward transform fail\r\n"); 
         }
+        cudaDeviceSynchronize();
     }
-    /*
-    cufftReal *pfbfir_out = (cufftReal*)malloc(CHANNELS*SPECTRA*sizeof(cufftReal));
-    cudaMemcpy(pfbfir_out, pfbfir_out_gpu, CHANNELS*SPECTRA*sizeof(cufftReal), cudaMemcpyDeviceToHost);
-    for(long long unsigned int i = 0;i<CHANNELS*SPECTRA ;i++)
-    {
-        if(pfbfir_out[i]!=4.0)
-        {
-            printf("%lld %f\r\n",i,pfbfir_out[i]);
-            break;
-        }       
-    }
-    for(int i = 0;i<200;i++)printf("%d %f\r\n",i,pfbfir_out[i]);
-    free(pfbfir_out);
-    */
-    cudaDeviceSynchronize();
+    
     // record the end time
     clock_gettime(CLOCK_MONOTONIC, &stop);
     elapsed_gpu_ns0 = ELAPSED_NS(start, stop);
@@ -238,7 +205,7 @@ int main()
     int64_t elapsed_gpu_ns2  = 0;
     clock_gettime(CLOCK_MONOTONIC, &start);
 #ifdef NORMAL
-    cudaMemcpy(data_host_out, data_gpu_out, SAMPLES * sizeof(cufftComplex), cudaMemcpyDeviceToHost);
+    cudaMemcpy(data_host_out, data_gpu_out, CHANNELS*SPECTRA * sizeof(cufftComplex), cudaMemcpyDeviceToHost);
 #else
     // do nothing here
 #endif
@@ -251,7 +218,7 @@ int main()
 
     // cal power
     float *res = (float*) malloc(SAMPLES * sizeof(float));
-    for(int i = 0; i < SAMPLES; i++)
+    for(int i = 0; i < CHANNELS*SPECTRA; i++)
     {
         res[i] = data_host_out[i].x * data_host_out[i].x + data_host_out[i].y * data_host_out[i].y;
     }
@@ -276,14 +243,16 @@ int main()
 #endif
     
     // end
+    cufftDestroy(plan);
+    free(weights);
     cudaFree(weights_gpu);
     cudaFree(pfbfir_out_gpu);
-    cufftDestroy(plan);
     cudaFree(data_gpu_out);
     free(res);
 #ifdef NORMAL
     cudaFree(data_gpu);
-    free(data_host);
+    cudaFreeHost(data_host);
+    cudaFreeHost(data_host_out);
 #else
     cudaFreeHost(data_host);
 #endif
