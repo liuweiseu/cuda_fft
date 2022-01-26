@@ -16,7 +16,7 @@
 #define WR_TO_FILE
 #define NORMAL
 
-#define REPEAT      6
+#define REPEAT      100
 #define ELAPSED_NS(start,stop) \
   (((int64_t)stop.tv_sec-start.tv_sec)*1000*1000*1000+(stop.tv_nsec-start.tv_nsec))
 
@@ -26,8 +26,8 @@ void gen_fake_data(float *data) {
    for( size_t t=0; t<SAMPLES; t++ ) { 
        double f = 2*M_PI * t *fin/fs;
        float res = 127 * sin(f)+127;
-       *(data+t) = res;
-       //*(data+t) = 1;
+       //*(data+t) = res;
+       *(data+t) = 1;
    }
 }
 
@@ -87,7 +87,7 @@ int main()
 
     float *pfbfir = (float*) malloc(sizeof(float)*CHANNELS*SPECTRA);
     for(int i = 0;i<CHANNELS*SPECTRA;i++)pfbfir[i] = 4.0;
-    //cudaMemcpy(pfbfir_out_gpu, pfbfir, CHANNELS*SPECTRA*sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(pfbfir_out_gpu, pfbfir, CHANNELS*SPECTRA*sizeof(float), cudaMemcpyHostToDevice);
     free(pfbfir);
 
     long long int step = CHANNELS;
@@ -114,10 +114,10 @@ int main()
     printf("Zero Copy Mode\r\n");
     cufftComplex *data_host_out;
     cudaHostAlloc((void **)&data_host_out, SAMPLES * sizeof(cufftComplex), cudaHostAllocMapped);
-    cufftReal *data_host;
-    cudaHostAlloc((void **)&data_host, SAMPLES * sizeof(cufftReal), cudaHostAllocMapped);
-    //unsigned char *data_host;
-    //cudaHostAlloc((void **)&data_host, SAMPLES * sizeof(unsigned char), cudaHostAllocMapped);
+    //cufftReal *data_host;
+    //cudaHostAlloc((void **)&data_host, SAMPLES * sizeof(cufftReal), cudaHostAllocMapped);
+    unsigned char *data_host;
+    cudaHostAlloc((void **)&data_host, SAMPLES * sizeof(unsigned char), cudaHostAllocMapped);
 #endif
 
     int64_t elapsed_gpu_ns3  = 0;
@@ -203,7 +203,7 @@ int main()
         0,
         0
         );
-     
+        
 
         //cufftExecC2C(plan, (cufftComplex*) data_gpu, (cufftComplex*) data_gpu, CUFFT_FORWARD);
 
