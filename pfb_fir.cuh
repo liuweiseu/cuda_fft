@@ -295,7 +295,8 @@ KERNEL REQD_WORK_GROUP_SIZE(WGS, 1, 1) void pfb_fir(
     float samples[TAPS];
     for (int i = 0; i < TAPS - 1; i++)
     {
-        samples[i] = get_sample_10bit(in, in_offset);
+        //samples[i] = get_sample_10bit(in, in_offset);
+        samples[i] = in[in_offset];
         in_offset += step;  // and we shift the in_offset along, this makes the indexing simpler later.
     }
 
@@ -323,7 +324,8 @@ KERNEL REQD_WORK_GROUP_SIZE(WGS, 1, 1) void pfb_fir(
          * This, combined with the way they are then read out below, avoids
          * having to manually shift things along in the array each loop.
          */
-        samples[(i + TAPS - 1) % TAPS] = get_sample_10bit(in, in_offset + idx);
+        //samples[(i + TAPS - 1) % TAPS] = get_sample_10bit(in, in_offset + idx);
+        samples[(i + TAPS - 1) % TAPS] = in[in_offset + idx];
 
         // Implement the actual FIR filter by multiplying samples by weights and summing.
         float sum = 0.0f;
