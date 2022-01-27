@@ -16,7 +16,7 @@
 #define WR_TO_FILE
 #define NORMAL
 
-#define REPEAT      2
+#define REPEAT      20
 #define ELAPSED_NS(start,stop) \
   (((int64_t)stop.tv_sec-start.tv_sec)*1000*1000*1000+(stop.tv_nsec-start.tv_nsec))
 
@@ -84,10 +84,13 @@ int main()
     printf("%-10s : %lld\r\n","step",step);
     long long int out_n = step * SPECTRA;
     printf("%-10s : %lld\r\n","out_n",out_n);
-    long long int stepy = (step * out_n + 256 * 1024 - 1)/(256*1024);
+    //long long int stepy = (step * out_n + 256 * 1024 - 1)/(256*1024);
+    long long int stepy;
+    stepy = (step * out_n + 256 * 1024 - 1)/(256*1024);
     printf("%-10s : %lld\r\n","stepy",stepy);
     int groupsx = step/WGS;
     printf("%-10s : %d\r\n","groupsx",groupsx);
+    //int groupsy = (out_n + stepy - 1)/stepy;
     int groupsy = (out_n + stepy - 1)/stepy;
     printf("%-10s : %d\r\n","groupsy",groupsy);
     dim3 dimgrid(groupsx*WGS, groupsy);

@@ -275,7 +275,7 @@ KERNEL REQD_WORK_GROUP_SIZE(WGS, 1, 1) void pfb_fir(
 
     // Figure out where this thread has to work.
     int lid = get_local_id(0);
-    int pos = group_x *   + lid; // pos is the position within the step (i.e. spectrum) that this thread will work on.
+    int pos = group_x * WGS + lid; // pos is the position within the step (i.e. spectrum) that this thread will work on.
     int offset = group_y * stepy + pos; // This thread probably doesn't work on the very beginning of the data, so we
                                         // make the indexing easier for ourselves later.
 
