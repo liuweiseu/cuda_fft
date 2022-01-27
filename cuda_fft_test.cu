@@ -102,6 +102,8 @@ int main()
 
  #ifdef NORMAL
     printf("Normal Mode\r\n");
+
+#ifdef LAPTOP
     cudaError_t status;
     unsigned char *data_host;
     status = cudaMallocHost((void **)&data_host,SAMPLES * sizeof(unsigned char));
@@ -111,6 +113,10 @@ int main()
     status = cudaMallocHost((void **)&data_host_out,CHANNELS*SPECTRA * sizeof(cufftComplex));
     if (status != cudaSuccess)
         printf("Error allocating pinned host memory\n");
+#else
+    unsigned char *data_host =(unsigned char*) malloc(SAMPLES * sizeof(unsigned char));
+    cufftComplex *data_host_out = (cufftComplex*) malloc(CHANNELS*SPECTRA * sizeof(cufftComplex));
+#endif
  #else
     printf("Zero Copy Mode\r\n");
     cufftComplex *data_host_out;
@@ -260,8 +266,13 @@ int main()
     free(res);
 #ifdef NORMAL
     cudaFree(data_gpu);
-    cudaFreeHost(data_host);
-    cudaFreeHost(data_host_out);
+    #ifdef LAPTOP
+        cudaFreeHost(data_host);
+        cudaFreeHost(data_host_out);
+    #else
+        free(data_host);
+        free(data_host_out);
+    #endif
 #else
     cudaFreeHost(data_host);
 #endif
