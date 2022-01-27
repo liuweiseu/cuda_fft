@@ -201,7 +201,7 @@ __device__ static inline int as_int(float x)
 #endif /* PORT_MAKO */
 
 
-#define WGS 128
+#define WGS 4 //128
 #define TAPS 4
 
 /* Return the byte index in the chunk where the start of your 10-bit sample will

@@ -7,8 +7,8 @@
 
 #include "pfb_fir.cuh"
 
-#define WGS         128
-#define CHANNELS    16384
+#define WGS         4
+#define CHANNELS    65536
 #define TAPS        4
 #define SPECTRA     512
 #define SAMPLES     CHANNELS * (SPECTRA + TAPS - 1)
@@ -16,7 +16,7 @@
 #define WR_TO_FILE
 #define NORMAL
 
-#define REPEAT      20
+#define REPEAT      2
 #define ELAPSED_NS(start,stop) \
   (((int64_t)stop.tv_sec-start.tv_sec)*1000*1000*1000+(stop.tv_nsec-start.tv_nsec))
 
@@ -80,14 +80,17 @@ int main()
     cufftReal *pfbfir_out_gpu;
     cudaMalloc((void**)&pfbfir_out_gpu, CHANNELS*SPECTRA*sizeof(cufftReal));
 
-    long long int step = CHANNELS;
-    printf("%-10s : %lld\r\n","step",step);
-    long long int out_n = step * SPECTRA;
-    printf("%-10s : %lld\r\n","out_n",out_n);
+    int step;
+    step = CHANNELS;
+    printf("%-10s : %d\r\n","step",step);
+    int out_n;
+    out_n = step * SPECTRA;
+    printf("%-10s : %d\r\n","out_n",out_n);
     //long long int stepy = (step * out_n + 256 * 1024 - 1)/(256*1024);
-    long long int stepy;
-    stepy = (step * out_n + 256 * 1024 - 1)/(256*1024);
-    printf("%-10s : %lld\r\n","stepy",stepy);
+    int stepy;
+    //stepy = (step * out_n + 256 * 1024 - 1)/(256*1024);
+    stepy = out_n/(256*1024)*step;
+    printf("%-10s : %d\r\n","stepy",stepy);
     int groupsx = step/WGS;
     printf("%-10s : %d\r\n","groupsx",groupsx);
     //int groupsy = (out_n + stepy - 1)/stepy;
@@ -134,7 +137,7 @@ int main()
     unsigned char *data_gpu;
 #ifdef NORMAL
     cudaMalloc((void**)&data_gpu, SAMPLES * sizeof(unsigned char));
-    cudaMalloc((void**)&data_gpu_out, SAMPLES * sizeof(cufftComplex));
+    cudaMalloc((void**)&data_gpu_out, CHANNELS*SPECTRA * sizeof(cufftComplex));
 #else
     // do nothing here
 #endif
@@ -191,12 +194,15 @@ int main()
         0,
         0
         );
-        
+
+        cudaDeviceSynchronize();
+    
         fft_ret = cufftExecR2C(plan, (cufftReal*)pfbfir_out_gpu, (cufftComplex*) data_gpu_out);
         if (fft_ret != CUFFT_SUCCESS) {
+            printf("%d\r\n",fft_ret);
             printf("forward transform fail\r\n"); 
         }
-        cudaDeviceSynchronize();
+        //cudaDeviceSynchronize();
     }
     
     // record the end time
