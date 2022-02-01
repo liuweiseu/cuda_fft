@@ -260,7 +260,7 @@ DEVICE_FN float get_sample_10bit(const GLOBAL uchar * RESTRICT in, int idx)
  */
 KERNEL REQD_WORK_GROUP_SIZE(WGS, 1, 1) void pfb_fir(
     GLOBAL float * RESTRICT out,          // Output memory
-    const GLOBAL uchar * RESTRICT in,     // Input data (digitiser samples)
+    const GLOBAL char * RESTRICT in,     // Input data (digitiser samples)
     const GLOBAL float * RESTRICT weights,// Weights for the PFB-FIR filter.
     int n,                                // Size of the `out` array, to avoid going out-of-bounds.
     int step,                             // Number of input samples needed for each spectrum, i.e. 2*channels.
@@ -296,6 +296,7 @@ KERNEL REQD_WORK_GROUP_SIZE(WGS, 1, 1) void pfb_fir(
     for (int i = 0; i < TAPS - 1; i++)
     {
         //samples[i] = get_sample_10bit(in, in_offset);
+
         samples[i] = in[in_offset];
         in_offset += step;  // and we shift the in_offset along, this makes the indexing simpler later.
     }

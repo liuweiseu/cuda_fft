@@ -7,14 +7,17 @@
 
 #include "pfb_fir.cuh"
 
-#define WGS         4
+//#define WGS         16
+//#define TAPS        4
+
 #define CHANNELS    65536
-#define TAPS        4
 #define SPECTRA     512
 #define SAMPLES     CHANNELS * (SPECTRA + TAPS - 1)
 
 #define WR_TO_FILE
 #define NORMAL
+
+#define LAPTOP
 
 #define REPEAT      2
 #define ELAPSED_NS(start,stop) \
@@ -25,7 +28,7 @@ void gen_fake_data(float *data) {
    float fin  = 128;
    for( size_t t=0; t<SAMPLES; t++ ) { 
        double f = 2*M_PI * t *fin/fs;
-       float res = 127 * sin(f)+127;
+       float res = 127 * sin(f);
        *(data+t) = res;
        //*(data+t) = 1;
    }
@@ -105,8 +108,8 @@ int main()
 
 #ifdef LAPTOP
     cudaError_t status;
-    unsigned char *data_host;
-    status = cudaMallocHost((void **)&data_host,SAMPLES * sizeof(unsigned char));
+    char *data_host;
+    status = cudaMallocHost((void **)&data_host,SAMPLES * sizeof(char));
     if (status != cudaSuccess)
         printf("Error allocating pinned host memory\n");
     cufftComplex *data_host_out;
@@ -140,9 +143,9 @@ int main()
     }
 
     cufftComplex *data_gpu_out;
-    unsigned char *data_gpu;
+    char *data_gpu;
 #ifdef NORMAL
-    cudaMalloc((void**)&data_gpu, SAMPLES * sizeof(unsigned char));
+    cudaMalloc((void**)&data_gpu, SAMPLES * sizeof(char));
     cudaMalloc((void**)&data_gpu_out, CHANNELS*SPECTRA * sizeof(cufftComplex));
 #else
     // do nothing here
@@ -192,7 +195,7 @@ int main()
         
         pfb_fir<<<dimgrid,dimblock>>>(
         (float *)pfbfir_out_gpu,  
-        (unsigned char*)data_gpu,   
+        (char*)data_gpu,   
         weights_gpu,    
         out_n,
         step,
