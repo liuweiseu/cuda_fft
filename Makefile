@@ -1,16 +1,16 @@
 CC	= gcc
 
 DEF		= 
-TARGET  = fast_gpu_test
+TARGET  = fast_gpu
 
 INC		= fast_gpu.h
-SRC		= fast_gpu_src.c
+SRC		= fast_gpu.c
 
-FLAG  	= -I./fast_gpu \
-          -L./fast_gpu \
+FLAG  	= -I./fast_gpu_lib \
+          -L./fast_gpu_lib \
 		  -lfastgpu -lm
 
-SUB_DIR = fast_gpu
+SUB_DIR = fast_gpu_lib
 
 ${TARGET}: ${SRC} ${SUB_DIR}
 	${CC} ${SRC} ${DEF} -o $@  ${FLAG} 
