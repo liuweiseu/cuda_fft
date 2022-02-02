@@ -1,17 +1,18 @@
-NVCC	= nvcc
+CC	= gcc
 
 DEF		= 
-TARGET  = cuda_fft_test
+TARGET  = fast_gpu_test
 
-INC 	= pfb_fir.cuh
-SRC		= cuda_fft_test.cu
+INC		= fast_gpu.h
+SRC		= fast_gpu_src.c
 
-CCFLAG 	= -I/usr/local/cuda/include \
-		  -L/usr/local/cuda/lib64   \
-		  -lcufft
-#-O3 -std=c++11			
-${TARGET}: ${SRC} ${INC}
-	${NVCC} ${CCFLAG} ${SRC} ${DEF} -o $@ 
+FLAG  	= -I./fast_gpu \
+          -L./fast_gpu \
+		  -lfastgpu -lm
+
+
+${TARGET}: ${SRC}
+	${CC} ${SRC} ${DEF} -o $@  ${FLAG} 
 
 .PHONY: clean
 clean:

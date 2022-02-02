@@ -4,11 +4,10 @@ We will compile the code as a .so, and then link the code in the hashpipe code.
  ******************************************************************************/
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
 #include "cufft.h"
 #include "cuda.h"
-#include "time.h"
 
+extern "C" {
 #include "fast_gpu.h"
 // This is the PFB FIR code from James
 #include "pfb_fir.cuh"
@@ -22,6 +21,15 @@ cufftComplex    *data_out_host;     // output data on host
 
 // cufft plan
 cufftHandle plan;
+
+// PFB FIR parameters
+int step        = CHANNELS;
+int out_n       = step * SPECTRA;
+int stepy       = out_n/(256*1024)*step;
+int groupsx     = step/WGS;
+int groupsy     = (out_n + stepy - 1)/stepy;
+dim3 dimgrid(groupsx*WGS, groupsy);
+dim3 dimblock(WGS,1);
 
 int GPU_GetDevInfo()
 {
@@ -45,10 +53,10 @@ int GPU_GetDevInfo()
 }
 
 // This func is used for allocating pinned memory on the host computer 
-int Host_BufferInit(DIN_TYPE *buf_in, DOUT_TYPE *buf_out)
+int Host_MallocBuffer(DIN_TYPE *buf_in, DOUT_TYPE *buf_out)
 {
     cudaError_t status;
-    status = cudaMallocHost((void **)&buf_in,SAMPLES * sizeof(DIN_TYPE));
+    status = cudaMallocHost((void **)&buf_in, SAMPLES * sizeof(DIN_TYPE));
     if(status != cudaSuccess)
         return -1;
     status = cudaMallocHost((void **)&buf_out, OUTPUT_LEN * sizeof(float));
@@ -58,7 +66,7 @@ int Host_BufferInit(DIN_TYPE *buf_in, DOUT_TYPE *buf_out)
 }
 
 // This func is used for allocating memory on the GPU
-void GPU_BufferInit()
+void GPU_MallocBuffer()
 {
     cudaMalloc((void**)&data_in_gpu, SAMPLES * sizeof(char));
     cudaMalloc((void**)&weights_gpu, TAPS*CHANNELS*sizeof(float));
@@ -87,6 +95,12 @@ int GPU_CreateFFTPlan()
         return 0;
 }
 
+// move weights from host to GPU
+void GPU_MoveWeightsFromHost(float *weights)
+{
+    cudaMemcpy(weights_gpu, weights, TAPS * CHANNELS * sizeof(float), cudaMemcpyHostToDevice);
+}
+
 // move data from host to GPU
 void GPU_MoveDataFromHost(DIN_TYPE *din)
 {
@@ -96,11 +110,49 @@ void GPU_MoveDataFromHost(DIN_TYPE *din)
 // move data from GPU to host
 void GPU_MoveDataToHost(DOUT_TYPE *dout)
 {
-    cudaMemcpy(data_host_out, data_gpu_out, CHANNELS*SPECTRA * sizeof(cufftComplex), cudaMemcpyDeviceToHost);
+    for(int i = 0; i < SPECTRA; i++)
+    cudaMemcpy(dout + i * SPECTRA + START_BIN, data_out_gpu + i * OUTPUT_LEN, OUTPUT_LEN * sizeof(DOUT_TYPE), cudaMemcpyDeviceToHost);
 }
 
-// calculate power of the output data
-void CalPower(DOUT_TYPE *res)
+// do PFB
+int GPU_DoPFB()
 {
 
+    pfb_fir<<<dimgrid,dimblock>>>(
+        (float *)pfbfir_out_gpu,  
+        (char*)data_in_gpu,   
+        weights_gpu,    
+        out_n,
+        step,
+        stepy,
+        0,
+        0
+        );
+    cudaDeviceSynchronize();
+    cufftResult fft_ret;
+    fft_ret = cufftExecR2C(plan, (cufftReal*)pfbfir_out_gpu, (cufftComplex*) data_out_gpu);
+    if (fft_ret != CUFFT_SUCCESS)
+        return -1; 
+    else
+        return 0;
+}
+
+void GPU_DestroyPlan()
+{
+    cufftDestroy(plan);
+}
+
+void Host_FreeBuffer(DIN_TYPE *buf_in, DOUT_TYPE *buf_out)
+{
+    cudaFreeHost(buf_in);
+    cudaFreeHost(buf_out);
+}
+
+void GPU_FreeBuffer()
+{
+    cudaFree(data_in_gpu);
+    cudaFree(weights_gpu);
+    cudaFree(pfbfir_out_gpu);
+    cudaFree(data_out_gpu);
+}
 }
