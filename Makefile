@@ -19,8 +19,8 @@ ${SUB_DIR}: ECHO
 	make -C $@
 
 ECHO:
-	echo ${SUB_DIR}
-	
+	@echo Going to compile .so in ${SUB_DIR}...
+
 .PHONY: clean
 clean:
 	rm ${TARGET}
