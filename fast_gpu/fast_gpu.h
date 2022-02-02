@@ -23,7 +23,7 @@ struct FFT_RES
 #define OUTPUT_LEN  SPECTRA * (STOP_BIN - START_BIN)
 
 int GPU_GetDevInfo();
-int Host_MallocBuffer(DIN_TYPE *buf_in, DOUT_TYPE *buf_out);
+int Host_MallocBuffer(DIN_TYPE **buf_in, DOUT_TYPE **buf_out);
 void GPU_MallocBuffer();
 int GPU_CreateFFTPlan();
 void GPU_MoveWeightsFromHost(float *weights);

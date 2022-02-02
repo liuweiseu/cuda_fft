@@ -53,13 +53,14 @@ int GPU_GetDevInfo()
 }
 
 // This func is used for allocating pinned memory on the host computer 
-int Host_MallocBuffer(DIN_TYPE *buf_in, DOUT_TYPE *buf_out)
+//int Host_MallocBuffer(DIN_TYPE *buf_in, DOUT_TYPE *buf_out)
+int Host_MallocBuffer(DIN_TYPE **buf_in, DOUT_TYPE **buf_out)
 {
     cudaError_t status;
-    status = cudaMallocHost((void **)&buf_in, SAMPLES * sizeof(DIN_TYPE));
+    status = cudaMallocHost((void **)buf_in, SAMPLES * sizeof(DIN_TYPE));
     if(status != cudaSuccess)
         return -1;
-    status = cudaMallocHost((void **)&buf_out, OUTPUT_LEN * sizeof(float));
+    status = cudaMallocHost((void **)buf_out, OUTPUT_LEN * sizeof(float));
     if(status != cudaSuccess)
         return -2;
     return 0;

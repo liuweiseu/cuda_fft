@@ -61,24 +61,18 @@ int main()
     // init data buffer
     DIN_TYPE *din;
     DOUT_TYPE *dout;
-    status = Host_MallocBuffer(din, dout);
-    printf("status=%d\r\n",status);
-    printf("1\r\n");
+    status = Host_MallocBuffer(&din, &dout);
     if(status == -1)
         printf("Malloc din on pinned memory failed!\r\n");
     else if(status == -2)
         printf("Malloc dout on pinned memory failed!\r\n");
     else
         printf("Malloc din and dout on pinned memory successfully!\r\n");
-    printf("SAMPLES=%d\r\n",SAMPLES);
-    for(unsigned long i = 0; i < SAMPLES; i++)
+    for(unsigned int i = 0; i < SAMPLES; i++)
     {
-        //din[i] = fake_data[i];
-        din[i] = 1;
+        din[i] = fake_data[i];
     }
-    printf("2\r\n");
     Host_FreeBuffer(din, dout);
-    printf("3\r\n");
     GPU_FreeBuffer();
     
     return 0;
