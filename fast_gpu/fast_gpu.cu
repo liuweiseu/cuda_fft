@@ -60,7 +60,7 @@ int Host_MallocBuffer(DIN_TYPE **buf_in, DOUT_TYPE **buf_out)
     status = cudaMallocHost((void **)buf_in, SAMPLES * sizeof(DIN_TYPE));
     if(status != cudaSuccess)
         return -1;
-    status = cudaMallocHost((void **)buf_out, OUTPUT_LEN * sizeof(float));
+    status = cudaMallocHost((void **)buf_out, OUTPUT_LEN * sizeof(DOUT_TYPE));
     if(status != cudaSuccess)
         return -2;
     return 0;
@@ -73,6 +73,7 @@ void GPU_MallocBuffer()
     cudaMalloc((void**)&weights_gpu, TAPS*CHANNELS*sizeof(float));
     cudaMalloc((void**)&pfbfir_out_gpu, CHANNELS*SPECTRA*sizeof(cufftReal));
     cudaMalloc((void**)&data_out_gpu, CHANNELS*SPECTRA * sizeof(cufftComplex));
+    cudaMallocHost((void**)&data_out_host, OUTPUT_LEN * sizeof(cufftComplex));
 }
 
 // This func is used for creating cufft plan
@@ -111,8 +112,17 @@ void GPU_MoveDataFromHost(DIN_TYPE *din)
 // move data from GPU to host
 void GPU_MoveDataToHost(DOUT_TYPE *dout)
 {
+//#pragma unroll 
     for(int i = 0; i < SPECTRA; i++)
-    cudaMemcpy(dout + i * SPECTRA + START_BIN, data_out_gpu + i * OUTPUT_LEN, OUTPUT_LEN * sizeof(DOUT_TYPE), cudaMemcpyDeviceToHost);
+    //cudaMemcpy(dout + i * CH_PER_SPEC, data_out_gpu + i * CHANNELS + START_BIN, OUTPUT_LEN * sizeof(DOUT_TYPE), cudaMemcpyDeviceToHost);
+        cudaMemcpy(data_out_host + i * CH_PER_SPEC, \
+                   data_out_gpu + i * CHANNELS + START_BIN, 
+                   OUTPUT_LEN * sizeof(cufftComplex), 
+                   cudaMemcpyDeviceToHost);
+    for(int i = 0; i < OUTPUT_LEN; i++)
+        dout[i] = data_out_host[i].x * data_out_host[i].x + \
+                  data_out_host[i].y * data_out_host[i].y;
+
 }
 
 // do PFB
@@ -128,7 +138,7 @@ int GPU_DoPFB()
         stepy,
         0,
         0
-        );
+        ); 
     cudaDeviceSynchronize();
     cufftResult fft_ret;
     fft_ret = cufftExecR2C(plan, (cufftReal*)pfbfir_out_gpu, (cufftComplex*) data_out_gpu);
@@ -155,5 +165,6 @@ void GPU_FreeBuffer()
     cudaFree(weights_gpu);
     cudaFree(pfbfir_out_gpu);
     cudaFree(data_out_gpu);
+    cudaFreeHost(data_out_host);
 }
 }

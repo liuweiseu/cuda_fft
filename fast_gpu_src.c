@@ -8,9 +8,10 @@
 #define ELAPSED_NS(start,stop) \
   (((int64_t)stop.tv_sec-start.tv_sec)*1000*1000*1000+(stop.tv_nsec-start.tv_nsec))
 
+// This func is used for generating fake data
 void gen_fake_data(float *data) {
    float fs = 1024;
-   float fin  = 128;
+   float fin  = 2;
    for( size_t t=0; t< SAMPLES; t++ ) { 
        double f = 2*M_PI * t *fin/fs;
        float res = 127 * sin(f);
@@ -72,8 +73,50 @@ int main()
     {
         din[i] = fake_data[i];
     }
+
+    // create cufft plan
+    status = GPU_CreateFFTPlan();
+    if(status == -1)
+    {
+        printf("The cuFFT plan can't be created!\r\n");
+        return 0;
+    }
+    else
+        printf("The cuFFT plan is created successfully!\r\n");
+
+    // move data from host to GPU and do FFT
+    for(int i = 0; i < REPEAT; i++)
+    {
+        GPU_MoveDataFromHost(din);
+        status = GPU_DoPFB();
+        if(status == -1)
+        {
+            printf("PFB failed!\r\n");
+            return 0;
+        }
+        GPU_MoveDataToHost(dout);
+    }
+    
+    
+    printf("Done!\r\n");
+    // write data to file
+    FILE *fp;
+    fp = fopen("fft.dat","w");
+    if(fp==NULL)
+    {
+        fprintf(stderr, "the file can not be create.\r\n");
+        return -1;
+    }
+    else
+    {
+        fprintf(stderr, "file created.\r\n");
+    }
+    fwrite(dout,OUTPUT_LEN * sizeof(float),1,fp);
+    fclose(fp);
+    
+    // close everything
+    GPU_DestroyPlan();
     Host_FreeBuffer(din, dout);
     GPU_FreeBuffer();
-    
     return 0;
 }

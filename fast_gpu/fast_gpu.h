@@ -4,7 +4,7 @@
 
 #define WGS 4 //128
 #define TAPS 4
-
+ 
 struct FFT_RES
 {
     float re;
@@ -12,7 +12,7 @@ struct FFT_RES
 };
 
 #define DIN_TYPE    char
-#define DOUT_TYPE    struct FFT_RES
+#define DOUT_TYPE   float //struct FFT_RES
 
 #define CHANNELS    65536
 #define SPECTRA     512
@@ -20,7 +20,8 @@ struct FFT_RES
 
 #define START_BIN   0
 #define STOP_BIN    255
-#define OUTPUT_LEN  SPECTRA * (STOP_BIN - START_BIN)
+#define CH_PER_SPEC (STOP_BIN - START_BIN + 1)
+#define OUTPUT_LEN  SPECTRA * CH_PER_SPEC
 
 int GPU_GetDevInfo();
 int Host_MallocBuffer(DIN_TYPE **buf_in, DOUT_TYPE **buf_out);
