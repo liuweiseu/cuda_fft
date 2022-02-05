@@ -328,7 +328,7 @@ KERNEL REQD_WORK_GROUP_SIZE(WGS, 1, 1) void pfb_fir(
         //samples[(i + TAPS - 1) % TAPS] = get_sample_10bit(in, in_offset + idx);
         samples[(i + TAPS - 1) % TAPS] = in[in_offset + idx];
             //printf("in[%d]:%d",in_offset + idx, in[in_offset + idx]);
-            printf("Hello From GPU\r\n");
+            //printf("Hello From GPU\r\n");
         // Implement the actual FIR filter by multiplying samples by weights and summing.
         float sum = 0.0f;
         for (int j = 0; j < TAPS; j++)
