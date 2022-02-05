@@ -7,7 +7,7 @@ We will compile the code as a .so, and then link the code in the hashpipe code.
 #include "cufft.h"
 #include "cuda.h"
 
-extern "C" {
+//extern "C" {
 #include "fast_gpu.h"
 // This is the PFB FIR code from James
 #include "pfb_fir.cuh"
@@ -167,4 +167,4 @@ void GPU_FreeBuffer()
     cudaFree(data_out_gpu);
     cudaFreeHost(data_out_host);
 }
-}
+//}

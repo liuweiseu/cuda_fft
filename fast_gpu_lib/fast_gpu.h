@@ -15,7 +15,7 @@ struct FFT_RES
 #define DOUT_TYPE   float //struct FFT_RES
 
 #define CHANNELS    65536
-#define SPECTRA     512
+#define SPECTRA     4096
 #define SAMPLES     CHANNELS * (SPECTRA + TAPS - 1)
 
 #define START_BIN   0
