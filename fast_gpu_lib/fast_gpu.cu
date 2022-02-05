@@ -23,11 +23,11 @@ cufftComplex    *data_out_host;     // output data on host
 cufftHandle plan;
 
 // PFB FIR parameters
-int step        = CHANNELS;
-int out_n       = step * SPECTRA;
-int stepy       = out_n/(256*1024)*step;
-int groupsx     = step/WGS;
-int groupsy     = (out_n + stepy - 1)/stepy;
+static int step        = CHANNELS;
+static int out_n       = step * SPECTRA;
+static int stepy       = out_n/(256*1024)*step;
+static int groupsx     = step/WGS;
+static int groupsy     = (out_n + stepy - 1)/stepy;
 dim3 dimgrid(groupsx*WGS, groupsy);
 dim3 dimblock(WGS,1);
 
