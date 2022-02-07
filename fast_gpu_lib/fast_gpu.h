@@ -2,15 +2,8 @@
 #ifndef _FASTGPU_H
 #define _FASTGPU_H
 
-#define WGS 4 //128
 #define TAPS 4
  
-struct FFT_RES
-{
-    float re;
-    float im;
-};
-
 #define DIN_TYPE    char
 #define DOUT_TYPE   float //struct FFT_RES
 
