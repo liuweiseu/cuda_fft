@@ -31,7 +31,7 @@ static int groupsy     = (out_n + stepy - 1)/stepy;
 dim3 dimgrid(groupsx*WGS, groupsy);
 dim3 dimblock(WGS,1);
 
-int GPU_GetDevInfo()
+void GPU_GetDevInfo()
 {
     int nDevices;
   	cudaGetDeviceCount(&nDevices);
@@ -45,15 +45,16 @@ int GPU_GetDevInfo()
     	printf("  Memory Bus Width (bits): %d\n", prop.memoryBusWidth);
     	printf("  Peak Memory Bandwidth (GB/s): %f\n\n", 2.0*prop.memoryClockRate*(prop.memoryBusWidth/8)/1.0e6);
   	}
-    
-    int gpu_dev = 0;
-    int rv = cudaSetDevice(gpu_dev);
+}
 
+int GPU_SetDevice(int gpu_dev)
+{
+    int rv = cudaSetDevice(gpu_dev);
     cudaDeviceProp prop;
     int deviceID;
     cudaGetDevice(&deviceID);
     cudaGetDeviceProperties(&prop, deviceID);
-    printf("GPU Device Info:\r\n");
+    printf("The selected GPU Device Info:\r\n");
     printf("%-25s: %d\r\n", "MaxThreadsPerBlock", prop.maxThreadsPerBlock);
     printf("%-25s: %d %d %d\r\n","maxThreadsDim", prop.maxThreadsDim[0], \
                                                   prop.maxThreadsDim[1], \
@@ -61,13 +62,12 @@ int GPU_GetDevInfo()
     printf("%-25s: %d %d %d\r\n","maxGridSize",   prop.maxGridSize[0], \
                                                   prop.maxGridSize[1], \
                                                   prop.maxGridSize[2]);
-
     if(!prop.deviceOverlap)
-        return -1;
+        return 1;
     else
         return 0;
-}
 
+}
 // This func is used for allocating pinned memory on the host computer 
 //int Host_MallocBuffer(DIN_TYPE *buf_in, DOUT_TYPE *buf_out)
 int Host_MallocBuffer(DIN_TYPE **buf_in, DOUT_TYPE **buf_out)

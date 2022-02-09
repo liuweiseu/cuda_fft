@@ -16,7 +16,8 @@
 #define CH_PER_SPEC (STOP_BIN - START_BIN + 1)
 #define OUTPUT_LEN  SPECTRA * CH_PER_SPEC
 
-int GPU_GetDevInfo();
+void GPU_GetDevInfo();
+int GPU_SetDevice(int gpu_dev);
 int Host_MallocBuffer(DIN_TYPE **buf_in, DOUT_TYPE **buf_out);
 void GPU_MallocBuffer();
 int GPU_CreateFFTPlan();
